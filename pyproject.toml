@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "matrixbuffer"
+version = "0.1.0"
+description = "A multiprocess-safe buffer for PyTorch tensors with live rendering using Pygame."
+authors = [{ name = "Alec Louis Clemente Candidato", email = "aleccandidato@gmail.com" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    "pygame",
+    "torch",
+    "numpy"
+]
