@@ -1,3 +1,31 @@
+Metadata-Version: 2.4
+Name: matrixbuffer
+Version: 0.2.0
+Summary: A Python package for high-performance GPU/CPU buffer rendering with support for tables, text, and graphics.
+Home-page: https://github.com/0202alcc/matrixbuffer
+Author: Alec Candidato
+Author-email: Alec Candidato <aleccandidato@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/0202alcc/matrixbuffer
+Project-URL: Documentation, https://github.com/0202alcc/matrixbuffer#readme
+Project-URL: Repository, https://github.com/0202alcc/matrixbuffer
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=1.10.0
+Requires-Dist: pygame>=2.0.0
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: Pillow>=8.0.0
+Dynamic: author
+Dynamic: classifier
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
 # MatrixBuffer
 
 MatrixBuffer is a Python package that provides a multiprocess-safe buffer for PyTorch tensors, specifically designed for rendering RGB matrices and tables using Pygame. This package allows for efficient sharing of tensor data between processes, making it suitable for applications that require real-time rendering and updates.
