@@ -1,186 +1,171 @@
-# Graphics.py
-
-import os
-import numpy as np
+import pygame
 import torch
 from PIL import Image, ImageDraw, ImageFont
+from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer
+
+class Text:
+    def __init__(self, text, x, y, font_path=None, font_size=16, color=(255,255,255)):
+        self.text = text
+        self.x = x
+        self.y = y
+        self.font_size = font_size
+        self.color = color
+
+        if font_path is None:
+            font_path = "fonts/ComicMono.ttf"
+        try:
+            self.font = ImageFont.truetype(font_path, font_size)
+        except:
+            self.font = ImageFont.load_default()
+
+    def render_to_tensor(self, buffer: MultiprocessSafeTensorBuffer):
+        if not self.text: return
+        bbox = self.font.getbbox(self.text)
+        text_w, text_h = max(1,bbox[2]-bbox[0]), max(1,bbox[3]-bbox[1])
+
+        img = Image.new("RGBA", (text_w, text_h), (0,0,0,0))
+        draw = ImageDraw.Draw(img)
+        draw.text((-bbox[0], -bbox[1]), self.text, font=self.font, fill=(*self.color,255))
+
+        arr = torch.ByteTensor(torch.ByteStorage.from_buffer(img.tobytes())).reshape(text_h, text_w, 4)
+        text_rgb = arr[...,:3].to(torch.float32)
+        alpha = arr[...,3:4].to(torch.float32)/255.0
+
+        buf = buffer.read_matrix().to(torch.float32)
+        H, W = buffer.get_dimensions()
+        x0, y0 = max(0,self.x), max(0,self.y)
+        x1, y1 = min(W, self.x+text_w), min(H, self.y+text_h)
+        if x0>=x1 or y0>=y1: return
+        tx0, ty0 = 0, 0
+        tx1, ty1 = x1-x0, y1-y0
+
+        region = buf[y0:y1, x0:x1]
+        buf[y0:y1, x0:x1] = text_rgb[ty0:ty1, tx0:tx1]*alpha[ty0:ty1, tx0:tx1] + region*(1-alpha[ty0:ty1, tx0:tx1])
+        buffer.write_matrix(buf.to(torch.uint8))
+
+
+class Table:
+    def __init__(self, data, x, y, font_path=None, font_size=16,
+                 cell_width=100, cell_height=40, grid_color=(200,200,200), bg_color=None,
+                 text_color=(255,255,255)):
+        self.data = data
+        self.x = x
+        self.y = y
+        self.font_size = font_size
+        self.cell_width = cell_width
+        self.cell_height = cell_height
+        self.grid_color = grid_color
+        self.bg_color = bg_color
+        self.text_color = text_color
+        self.font_path = font_path or "fonts/ComicMono.ttf"
+
+    def render_to_tensor(self, buffer: MultiprocessSafeTensorBuffer):
+        H, W = buffer.get_dimensions()
+        buf = buffer.read_matrix().to(torch.float32)
+        rows, cols = len(self.data), max(len(r) for r in self.data)
+        ch, cw = self.cell_height, self.cell_width
+
+        # Table bounds
+        y_start, y_end = self.y, min(H, self.y + rows*ch)
+        x_start, x_end = self.x, min(W, self.x + cols*cw)
+
+        # 1. Draw table background
+        if self.bg_color:
+            buf[y_start:y_end, x_start:x_end] = torch.tensor(self.bg_color, dtype=torch.float32)
+
+        # 2. Draw grid lines
+        row_mask = torch.zeros(y_end - y_start, dtype=torch.bool)
+        row_mask[0:(y_end - y_start)+1:ch] = True
+        col_mask = torch.zeros(x_end - x_start, dtype=torch.bool)
+        col_mask[0:(x_end - x_start)+1:cw] = True
+        grid_mask = row_mask[:, None] | col_mask[None,:]
+        buf[y_start:y_end, x_start:x_end][grid_mask] = torch.tensor(self.grid_color, dtype=torch.float32)
+
+        # 3. Create all Text objects for the table
+        text_objects = []
+        for r, row in enumerate(self.data):
+            for c, cell_text in enumerate(row):
+                if not cell_text: continue
+                cell_x = self.x + c * cw
+                cell_y = self.y + r * ch
+                text_objects.append(Text(cell_text, x=cell_x, y=cell_y,
+                                         font_path=self.font_path,
+                                         font_size=self.font_size,
+                                         color=self.text_color))
+
+        # 4. Render all text objects into a single temporary PIL image
+        table_width = x_end - x_start
+        table_height = y_end - y_start
+        text_layer = Image.new("RGBA", (table_width, table_height), (0,0,0,0))
+        for t in text_objects:
+            # Render the Text object into the PIL text_layer at correct relative position
+            bbox = t.font.getbbox(t.text)
+            tw, th = max(1,bbox[2]-bbox[0]), max(1,bbox[3]-bbox[1])
+            draw = ImageDraw.Draw(text_layer)
+            draw.text((t.x - x_start - bbox[0], t.y - y_start - bbox[1]),
+                      t.text, font=t.font, fill=(*t.color,255))
+
+        # 5. Convert text_layer to tensor
+        arr = torch.ByteTensor(torch.ByteStorage.from_buffer(text_layer.tobytes())).reshape(table_height, table_width, 4)
+        text_rgb = arr[...,:3].to(torch.float32)
+        alpha = arr[...,3:4].to(torch.float32)/255.0
+
+        # 6. Blend text layer onto buffer in a single operation
+        buf[y_start:y_end, x_start:x_end] = text_rgb*alpha + buf[y_start:y_end, x_start:x_end]*(1-alpha)
+        buffer.write_matrix(buf.to(torch.uint8))
+
 
 
 class Graphics:
-    def __init__(self, matrix_buffer, font_path=None, font_size=16):
-        self.buffer = matrix_buffer
+    def __init__(self, width=800, height=600, bg_color=(0,0,0)):
+        pygame.init()
+        self.width = width
+        self.height = height
+        self.bg_color = bg_color
+        self.screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption("Custom Tensor Renderer")
+        self.clock = pygame.time.Clock()
+        self.objects = []
 
-        # Resolve default font path: <package_root>/fonts/ComicMono.ttf
-        if font_path is None:
-            package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            font_path = os.path.join(package_root, "fonts", "ComicMono.ttf")
+    def add(self, obj):
+        self.objects.append(obj)
 
-        # Load font
-        try:
-            self.font = ImageFont.truetype(font_path, font_size)
-        except Exception as e:
-            print(f"Failed to load font at {font_path}: {e}. Falling back to default font.")
-            self.font = ImageFont.load_default()
+    def run(self, buffer: MultiprocessSafeTensorBuffer = None):
+        running = True
+        while running:
+            self.screen.fill(self.bg_color)
 
-        # Cache buffer dimensions (n rows = height, m cols = width)
-        self.buf_h, self.buf_w = self.buffer.get_dimensions()
+            if buffer:
+                tensor_data = buffer.read_matrix()
+                surf = pygame.surfarray.make_surface(tensor_data.cpu().numpy().swapaxes(0,1))
+                self.screen.blit(surf, (0,0))
+            else:
+                for obj in self.objects:
+                    obj.render_to_tensor(buffer)
 
-        # Ensure we are using an RGB buffer
-        if getattr(self.buffer, "get_mode", lambda: None)() != "rgb":
-            raise ValueError("Graphics requires an 'rgb' mode MultiprocessSafeTensorBuffer.")
-
-    def draw_text(self, text, start_x, start_y, color=(255, 255, 255)):
-        """Render a single text string at (start_x, start_y) onto buffer."""
-        if not text:
-            return
-
-        # Measure & rasterize text with PIL
-        bbox = self.font.getbbox(text)
-        text_w = max(1, bbox[2] - bbox[0])
-        text_h = max(1, bbox[3] - bbox[1])
-
-        img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        draw.text((-bbox[0], -bbox[1]), text, font=self.font,
-                  fill=(color[0], color[1], color[2], 255))
-
-        arr = np.array(img, dtype=np.uint8)  # (H, W, 4)
-        text_rgb = torch.from_numpy(arr[..., :3].copy()).to(torch.float32)  # (H, W, 3)
-        alpha = torch.from_numpy(arr[..., 3:4].copy()).to(torch.float32) / 255.0  # (H, W, 1)
-
-        # Safe clipping
-        x0, y0 = max(0, start_x), max(0, start_y)
-        x1, y1 = min(self.buf_w, start_x + text_w), min(self.buf_h, start_y + text_h)
-        if x0 >= x1 or y0 >= y1:
-            return
-
-        tx0, ty0 = x0 - start_x, y0 - start_y
-        tx1, ty1 = tx0 + (x1 - x0), ty0 + (y1 - y0)
-
-        text_rgb = text_rgb[ty0:ty1, tx0:tx1]
-        alpha = alpha[ty0:ty1, tx0:tx1]
-
-        # Blend
-        buf = self.buffer.read_matrix()  # (H, W, 3), uint8
-        region = buf[y0:y1, x0:x1].to(torch.float32)
-        blended = text_rgb * alpha + region * (1.0 - alpha)
-        buf[y0:y1, x0:x1] = blended.to(torch.uint8)
-        self.buffer.write_matrix(buf)
-
-    def draw_table_batched_full(
-        self, data, start_x=0, start_y=0,
-        grid_color=(200, 200, 200), bg_color=None
-    ):
-        """
-        Fully vectorized table renderer: grid, cell background, and text.
-        Uses PyTorch for blending. PIL/NumPy only for text rasterization.
-        """
-        buf = self.buffer.read_matrix()
-        H, W, _ = buf.shape
-        rows = len(data)
-        cols = max(len(r) for r in data)
-
-        cell_h = max(H // rows, 1)
-        cell_w = max(W // cols, 1)
-
-        # --- 1. Fill table background ---
-        if bg_color is not None:
-            y1 = min(start_y + rows * cell_h, H)
-            x1 = min(start_x + cols * cell_w, W)
-            buf[start_y:y1, start_x:x1] = torch.tensor(bg_color, dtype=torch.uint8)
-
-        # --- 2. Draw grid lines ---
-        row_pattern = torch.zeros(H, dtype=torch.bool)
-        row_pattern[start_y : start_y + rows * cell_h + 1 : cell_h] = True
-        col_pattern = torch.zeros(W, dtype=torch.bool)
-        col_pattern[start_x : start_x + cols * cell_w + 1 : cell_w] = True
-        grid_mask = row_pattern[:, None] | col_pattern[None, :]
-        buf[grid_mask] = torch.tensor(grid_color, dtype=torch.uint8)
-
-        # --- 3. Text overlay ---
-        overlay = torch.zeros_like(buf, dtype=torch.float32)
-        alpha_overlay = torch.zeros(H, W, 1, dtype=torch.float32)
-
-        text_imgs, positions = [], []
-        for r, row in enumerate(data):
-            for c, text in enumerate(row):
-                if not text:
-                    continue
-                bbox = self.font.getbbox(text)
-                text_w, text_h = max(1, bbox[2] - bbox[0]), max(1, bbox[3] - bbox[1])
-
-                img = Image.new("RGBA", (text_w, text_h), (0, 0, 0, 0))
-                draw = ImageDraw.Draw(img)
-                draw.text((-bbox[0], -bbox[1]), text, font=self.font, fill=(255, 255, 255, 255))
-                arr = np.array(img, dtype=np.uint8)
-
-                arr_t = torch.from_numpy(arr.copy())
-                text_imgs.append(arr_t)
-
-                cell_top, cell_left = r * cell_h + start_y, c * cell_w + start_x
-                text_x = cell_left + (cell_w - text_w) // 2
-                text_y = cell_top + (cell_h - text_h) // 2 - bbox[1]
-                positions.append((text_y, text_x))
-
-        for arr, (y0, x0) in zip(text_imgs, positions):
-            h_clip, w_clip = min(arr.shape[0], H - y0), min(arr.shape[1], W - x0)
-            if h_clip <= 0 or w_clip <= 0:
-                continue
-            arr_rgb = arr[:h_clip, :w_clip, :3].to(torch.float32)
-            arr_alpha = arr[:h_clip, :w_clip, 3:4].to(torch.float32) / 255.0
-            overlay[y0:y0+h_clip, x0:x0+w_clip] = arr_rgb
-            alpha_overlay[y0:y0+h_clip, x0:x0+w_clip] = arr_alpha
-
-        buf_float = buf.to(torch.float32)
-        buf_float = overlay * alpha_overlay + buf_float * (1.0 - alpha_overlay)
-        self.buffer.write_matrix(buf_float.to(torch.uint8))
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running=False
+            self.clock.tick(30)
+        pygame.quit()
 
 
 if __name__ == "__main__":
-    import pygame
-    from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer
-    import torch
+    width, height = 640, 480
+    buffer = MultiprocessSafeTensorBuffer(n=height, m=width, mode="rgb")
+    buffer.write_matrix(torch.zeros((height,width,3), dtype=torch.uint8))
 
-    pygame.init()
-    window_width, window_height = 800, 600
-    screen = pygame.display.set_mode((window_width, window_height))
-    pygame.display.set_caption("Fully Vectorized Table Render")
+    g = Graphics(width=width, height=height, bg_color=(30,30,30))
 
-    buffer_width, buffer_height = 400, 300
-    buffer = MultiprocessSafeTensorBuffer(n=buffer_height, m=buffer_width, mode="rgb")
-
-    background = torch.zeros((buffer_height, buffer_width, 3), dtype=torch.uint8)
-    background[:, :] = torch.tensor([20, 30, 60], dtype=torch.uint8)
-    buffer.write_matrix(background)
-
-    graphics = Graphics(buffer, font_size=16)
-    data = [
-        ["Name", "Age", "Score", "Country"],
-        ["Alice", "23", "95", "USA"],
-        ["Bob", "30", "88", "UK"],
-        ["Carol", "27", "92", "Canada"],
-        ["Dave", "35", "85", "Australia"]
-    ]
-
-    graphics.draw_table_batched_full(
-        data, start_x=0, start_y=0,
-        grid_color=(200, 200, 200),
-        bg_color=(50, 50, 100)
+    text1 = Text("Custom Rendering Engine!", x=50, y=50, font_size=32, color=(255,255,0))
+    table1 = Table(
+        data=[["Name","Age"], ["Alice","24"], ["Bob","30"]],
+        x=50, y=120, cell_width=120, cell_height=40,
+        bg_color=(50,50,100), grid_color=(255,255,255)
     )
 
-    running, clock = True, pygame.time.Clock()
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+    text1.render_to_tensor(buffer)
+    table1.render_to_tensor(buffer)
 
-        tensor_data = buffer.read_matrix()
-        np_data = tensor_data.cpu().numpy()
-        np_data_transposed = np.transpose(np_data, (1, 0, 2))  # (W,H,3)
-        surface = pygame.surfarray.make_surface(np_data_transposed)
-        surface_scaled = pygame.transform.scale(surface, (window_width, window_height))
-        screen.blit(surface_scaled, (0, 0))
-        pygame.display.flip()
-        clock.tick(60)
-
-    pygame.quit()
+    g.run(buffer)
