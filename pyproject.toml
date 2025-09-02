@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "matrixbuffer"
-version = "0.2.0"
+name = "pymatgraph"
+version = "0.3.0"
 description = "A Python package for high-performance GPU/CPU buffer rendering with support for tables, text, and graphics."
 readme = "README.md"
 license = "MIT"
@@ -12,15 +12,11 @@ authors = [
     { name="Alec Candidato", email="aleccandidato@gmail.com" }
 ]
 requires-python = ">=3.8"
-dependencies = [
-    "torch>=1.10.0",
-    "pygame>=2.0.0",
-    "numpy>=1.21.0",
-    "Pillow>=8.0.0"
-]
+dependencies = ["torch", "numpy", "Pillow", "pygame", "kivy"]
 dynamic = ["classifiers"]
+include = ["matrixbuffer/fonts/*"]
 
 [project.urls]
-Homepage = "https://github.com/0202alcc/matrixbuffer"
-Documentation = "https://github.com/0202alcc/matrixbuffer#readme"
-Repository = "https://github.com/0202alcc/matrixbuffer"
+Homepage = "https://github.com/0202alcc/pymatgraph"
+Documentation = "https://github.com/0202alcc/pymatgraph#readme"
+Repository = "https://github.com/0202alcc/pymatgraph"

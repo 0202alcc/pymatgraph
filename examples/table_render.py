@@ -1,6 +1,6 @@
 import pygame
-from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer
-from matrixbuffer.Graphics import Graphics
+from pymatgraph.MatrixBuffer import MultiprocessSafeTensorBuffer
+from pymatgraph.Graphics import Graphics
 import torch
 import numpy as np
 

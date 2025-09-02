@@ -15,7 +15,7 @@ import time
 
 try:
     # Attempt to import the user's matrixbuffer package
-    from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer, Render
+    from pymatgraph.MatrixBuffer import MultiprocessSafeTensorBuffer, Render
 except ImportError:
     print("Error: The 'matrixbuffer' package could not be found.")
     print("Please make sure you have installed it by running 'pip install .' in your project's root directory.")

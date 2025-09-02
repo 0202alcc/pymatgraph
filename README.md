@@ -1,6 +1,6 @@
-# MatrixBuffer
+# pymatgraph
 
-MatrixBuffer is a Python package that provides a multiprocess-safe buffer for PyTorch tensors, specifically designed for rendering RGB matrices and tables using Pygame. This package allows for efficient sharing of tensor data between processes, making it suitable for applications that require real-time rendering and updates.
+pymatgraph is a Python package that provides a multiprocess-safe buffer for PyTorch tensors, specifically designed for rendering RGB matrices and tables using Pygame. This package allows for efficient sharing of tensor data between processes, making it suitable for applications that require real-time rendering and updates.
 
 ## Features
 
@@ -11,64 +11,30 @@ MatrixBuffer is a Python package that provides a multiprocess-safe buffer for Py
 
 ## Installation
 
-You can install the MatrixBuffer package using pip:
+You can install the pymatgraph package using pip:
 
 ```bash
-pip install matrixbuffer
+pip install pymatgraph
 ```
 
 ## Usage
-Here is a simple example of how to use the MatrixBuffer package:
+Here is a simple example of how to use the pymatgraph package:
 ```python
-import pygame
-import multiprocessing
-from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer, Render, update_buffer_process
-from matrixbuffer.Graphics import draw_table
+width, height = 640, 480
+buffer = MultiprocessSafeTensorBuffer(n=height, m=width, mode="rgb")
+buffer.write_matrix(torch.zeros((height,width,3), dtype=torch.uint8))
 
-# Initialize Pygame and create a window
-pygame.init()
-screen = pygame.display.set_mode((800, 600))
+g = Graphics(width=width, height=height, bg_color=(30,30,30))
 
-# Create a multiprocess-safe tensor buffer
-rgb_buffer = MultiprocessSafeTensorBuffer(n=240, m=320, mode="rgb")
-
-# Create a renderer
-renderer = Render(rgb_buffer, screen)
-
-# Start the worker process to update the buffer
-stop_event = multiprocessing.Event()
-worker_process = multiprocessing.Process(
-    target=update_buffer_process, 
-    args=(rgb_buffer, stop_event)
+text1 = Text("Custom Rendering Engine!", x=50, y=50, font_size=32, color=(255,255,0))
+table1 = Table(
+    data=[["Name","Age"], ["Alice","24"], ["Bob","30"]],
+    x=50, y=120, cell_width=120, cell_height=40,
+    bg_color=(50,50,100), grid_color=(255,255,255)
 )
-worker_process.start()
 
-# Example table data
-headers = ["ID", "Name", "Score"]
-rows = [
-    [1, "Alice", 95],
-    [2, "Bob", 87],
-    [3, "Charlie", 78],
-]
+text1.render_to_tensor(buffer)
+table1.render_to_tensor(buffer)
 
-# Main loop for rendering
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-    # Render tensor buffer
-    renderer.render()
-
-    # Draw a table on top
-    draw_table(screen, headers, rows, (50, 50))
-
-    pygame.display.flip()
-
-# Clean up
-stop_event.set()
-worker_process.join()
-pygame.quit()
-
+g.run(buffer)
 ```

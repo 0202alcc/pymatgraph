@@ -1,8 +1,8 @@
 import pygame
 import numpy as np
 import torch
-from matrixbuffer.MatrixBuffer import MultiprocessSafeTensorBuffer, Render
-from matrixbuffer.Graphics import Graphics
+from pymatgraph.MatrixBuffer import MultiprocessSafeTensorBuffer, Render
+from pymatgraph.Graphics import Graphics
 
 # Initialize Pygame
 pygame.init()
