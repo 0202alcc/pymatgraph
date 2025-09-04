@@ -166,13 +166,20 @@ class Table(GraphicObject):
 
 
 class ImageObject(GraphicObject):
-    def __init__(self, image_path, x=0, y=0, width=None, height=None,
+    def __init__(self, image, x=0, y=0, width=None, height=None,
                  visible=True, opacity=1.0, z_index=0):
         super().__init__(x, y, visible, opacity, z_index)
-        img = Image.open(image_path).convert("RGBA")
+
+        # Accept either PIL.Image.Image or a file path
+        if isinstance(image, Image.Image):
+            img = image.convert("RGBA")
+        else:
+            img = Image.open(image).convert("RGBA")
+
         if width and height:
             img = img.resize((int(width), int(height)), Image.LANCZOS)
         self.img = img
+
 
     def render_to_buffer(self, buffer):
         if not self.visible:

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: pymatgraph
-Version: 0.3.2
+Version: 0.3.3
 Summary: A Python package for high-performance tensor-based GPU/CPU buffer rendering, supporting tables, text, images, and graphics.
 Author-email: Alec Candidato <aleccandidato@gmail.com>
 License-Expression: Apache-2.0

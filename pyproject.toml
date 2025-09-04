@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pymatgraph"
-version = "0.3.2"
+version = "0.3.3"
 description = "A Python package for high-performance tensor-based GPU/CPU buffer rendering, supporting tables, text, images, and graphics."
 readme = "README.md"
 license = "Apache-2.0"
