@@ -4,7 +4,7 @@
 import torch
 from PIL import Image, ImageDraw, ImageFont
 from pymatgraph.MatrixBuffer import MultiprocessSafeTensorBuffer, LocalTensorBuffer
-import importlib.resources as pkg_resources
+from importlib.resources import files
 import pymatgraph
 
 
@@ -29,10 +29,9 @@ class Text(GraphicObject):
         self.color = tuple(map(int, color))
 
         if font_path is None:
-            with pkg_resources.path(pymatgraph, "fonts/ComicMono.ttf") as p:
-                font_path = str(p)
+            font_path = files(pymatgraph) / "fonts" / "ComicMono.ttf"
         try:
-            self.font = ImageFont.truetype(font_path, self.font_size)
+            self.font = ImageFont.truetype(str(font_path), self.font_size)
         except Exception:
             self.font = ImageFont.load_default()
 
@@ -40,13 +39,8 @@ class Text(GraphicObject):
         if not self.visible or not self.text:
             return
 
-        # Support raw tensor or buffer object
-        if isinstance(buffer, torch.Tensor):
-            H, W = buffer.shape[:2]
-            buf = buffer
-        else:
-            H, W = buffer.get_dimensions()
-            buf = buffer.inplace_matrix()
+        H, W = buffer.shape[:2] if isinstance(buffer, torch.Tensor) else buffer.get_dimensions()
+        buf = buffer if isinstance(buffer, torch.Tensor) else buffer.inplace_matrix()
 
         bbox = self.font.getbbox(self.text)
         text_w, text_h = max(1, bbox[2]-bbox[0]), max(1, bbox[3]-bbox[1])
@@ -56,7 +50,7 @@ class Text(GraphicObject):
 
         arr = torch.ByteTensor(torch.ByteStorage.from_buffer(img.tobytes())).reshape(text_h, text_w, 4)
         text_rgb = arr[..., :3].to(torch.float32)
-        alpha = (arr[..., 3:4].to(torch.float32) / 255.0) * self.opacity
+        alpha = (arr[..., 3:4].to(torch.float32)/255.0) * self.opacity
 
         x0, y0 = int(self.x), int(self.y)
         x1, y1 = x0 + text_w, y0 + text_h
@@ -69,7 +63,7 @@ class Text(GraphicObject):
         text_slice = text_rgb[vis_y0:vis_y0+(y1-y0), vis_x0:vis_x0+(x1-x0)]
         alpha_slice = alpha[vis_y0:vis_y0+(y1-y0), vis_x0:vis_x0+(x1-x0)]
         region = buf[y0:y1, x0:x1].to(torch.float32)
-        buf[y0:y1, x0:x1] = (text_slice * alpha_slice + region * (1 - alpha_slice)).to(torch.uint8)
+        buf[y0:y1, x0:x1] = (text_slice*alpha_slice + region*(1-alpha_slice)).to(torch.uint8)
 
 
 class Table(GraphicObject):
@@ -88,12 +82,11 @@ class Table(GraphicObject):
         self.expand_cells = bool(expand_cells)
 
         if font_path is None:
-            with pkg_resources.path(pymatgraph, "fonts/ComicMono.ttf") as p:
-                self.font_path = str(p)
+            self.font_path = files(pymatgraph) / "fonts" / "ComicMono.ttf"
         else:
             self.font_path = font_path
         try:
-            self._font = ImageFont.truetype(self.font_path, self.font_size)
+            self._font = ImageFont.truetype(str(self.font_path), self.font_size)
         except Exception:
             self._font = ImageFont.load_default()
 
@@ -103,12 +96,8 @@ class Table(GraphicObject):
         if not self.visible or not self.data:
             return
 
-        if isinstance(buffer, torch.Tensor):
-            H, W = buffer.shape[:2]
-            buf = buffer
-        else:
-            H, W = buffer.get_dimensions()
-            buf = buffer.inplace_matrix()
+        H, W = buffer.shape[:2] if isinstance(buffer, torch.Tensor) else buffer.get_dimensions()
+        buf = buffer if isinstance(buffer, torch.Tensor) else buffer.inplace_matrix()
 
         rows = len(self.data)
         cols = max(len(r) for r in self.data)
@@ -189,12 +178,8 @@ class ImageObject(GraphicObject):
         if not self.visible:
             return
 
-        if isinstance(buffer, torch.Tensor):
-            H, W = buffer.shape[:2]
-            buf = buffer
-        else:
-            H, W = buffer.get_dimensions()
-            buf = buffer.inplace_matrix()
+        H, W = buffer.shape[:2] if isinstance(buffer, torch.Tensor) else buffer.get_dimensions()
+        buf = buffer if isinstance(buffer, torch.Tensor) else buffer.inplace_matrix()
 
         arr = torch.ByteTensor(torch.ByteStorage.from_buffer(self.img.tobytes())).reshape(
             self.img.height, self.img.width, 4

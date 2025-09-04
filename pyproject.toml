@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pymatgraph"
-version = "0.3.1"
+version = "0.3.2"
 description = "A Python package for high-performance tensor-based GPU/CPU buffer rendering, supporting tables, text, images, and graphics."
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     { name="Alec Candidato", email="aleccandidato@gmail.com" }
 ]
@@ -23,7 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3 :: Only",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
 keywords = ["GPU", "CPU", "graphics", "tensor", "rendering", "tables", "text", "images", "pygame", "kivy", "high-performance"]

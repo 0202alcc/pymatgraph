@@ -1,0 +1,5 @@
+torch
+numpy
+Pillow
+pygame
+kivy

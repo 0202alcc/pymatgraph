@@ -69,7 +69,7 @@ if __name__ == "__main__":
     anim_proc.start()
 
     # Pygame renderer runs in the main process
-    gfx = Graphics(width, height, bg_color=(30, 30, 30), backend="pygame")
+    gfx = Graphics(width, height, bg_color=(30, 30, 30), backend="kivy")
     gfx.run(buffer)
 
     anim_proc.terminate()
